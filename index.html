@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>柳枝文字【老黑】</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{overflow:hidden;background:#ffffff;cursor:none;font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif}
+canvas{display:block}
+
+/* ===== 控制面板 ===== */
+.control-panel{position:fixed;top:0;right:0;width:300px;max-height:100vh;background:rgba(18,18,26,0.92);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-left:1px solid rgba(255,255,255,0.08);border-radius:0 0 0 12px;padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;z-index:1000;transform:translateX(0);transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);cursor:default}
+.control-panel.collapsed{transform:translateX(100%)}
+.panel-title{font-size:16px;font-weight:700;color:#fff;padding-bottom:10px;border-bottom:1px solid #2a2a3a}
+.param-label{display:flex;justify-content:space-between;font-size:12px;color:#aaa;margin-bottom:4px}
+.param-value{font-family:"Cascadia Code","Fira Code",monospace;color:#6366f1;font-weight:600;font-size:13px}
+input[type="range"]{-webkit-appearance:none;width:100%;height:5px;border-radius:3px;background:#1e1e2e;outline:none;cursor:pointer}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#6366f1;cursor:pointer;box-shadow:0 0 6px rgba(99,102,241,0.5)}
+input[type="range"]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#6366f1;cursor:pointer;border:none}
+.direction-btn{flex:1;padding:6px 0;border:1px solid #2a2a3a;border-radius:5px;background:#1a1a24;color:#888;font-size:11px;cursor:pointer;transition:all 0.2s}
+.direction-btn.active{background:#6366f1;color:#fff;border-color:#6366f1;box-shadow:0 0 10px rgba(99,102,241,0.3)}
+.save-btn{padding:10px 0;border:none;border-radius:7px;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;font-size:13px;font-weight:600;cursor:pointer}
+.toggle-btn{position:fixed;top:16px;right:16px;z-index:1001;width:40px;height:40px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;background:rgba(18,18,26,0.85);color:#ccc;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
+.color-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;align-items:center}
+.color-pick{display:flex;align-items:center;gap:6px}
+.color-pick label{font-size:10px;color:#888}
+.color-pick input[type="color"]{width:28px;height:28px;border:1px solid #2a2a3a;border-radius:5px;cursor:pointer;background:none;padding:0}
+.text-input{width:100%;padding:8px 10px;background:#1a1a24;border:1px solid #2a2a3a;border-radius:5px;color:#e8ecff;font-size:13px;outline:none}
+.text-input:focus{border-color:#6366f1}
+.btn-row{display:flex;gap:6px}
+.font-file-btn{display:block;text-align:center;padding:7px 0;border:1px dashed #2a2a3a;border-radius:5px;background:#1a1a24;color:#888;font-size:11px;cursor:pointer}
+.font-file-btn:hover{border-color:#6366f1;color:#ccc}
+.font-file-name{font-size:10px;color:#6366f1;margin-top:4px;word-break:break-all}
+input[type="file"]{display:none}
+
+/* ===== 底部挂件（复制自 essay-paper） ===== */
+.bottom-links{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;z-index:999;padding:8px 16px;background:rgba(18,18,26,0.75);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:28px;border:1px solid rgba(255,255,255,0.08);transition:opacity 0.35s,transform 0.35s}
+.bottom-links.hidden{opacity:0;transform:translateX(-50%) translateY(20px);pointer-events:none}
+.link-icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);transition:all 0.25s;cursor:pointer;text-decoration:none;color:#aaa}
+.link-icon:hover{background:rgba(99,102,241,0.25);border-color:#6366f1;transform:translateY(-2px);color:#fff}
+.link-icon svg{width:18px;height:18px;fill:none;stroke:#aaa;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:stroke 0.25s}
+.link-icon:hover svg{stroke:#fff}
+.link-icon.arrow-btn svg{width:14px;height:14px;stroke-width:2}
+.link-icon.h-letter{font-size:15px;font-weight:700;font-family:Arial,sans-serif;line-height:1}
+.bottom-expand{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);z-index:998;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(18,18,26,0.6);border:1px solid rgba(255,255,255,0.08);cursor:pointer;opacity:0;pointer-events:none;transition:all 0.35s}
+.bottom-expand.visible{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.bottom-expand svg{width:14px;height:14px;stroke:#888;stroke-width:2;fill:none}
+.bottom-expand:hover svg{stroke:#fff}
+.info-modal{position:fixed;inset:0;z-index:2000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.info-modal.show{display:flex}
+.info-box{background:rgba(18,18,26,0.95);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:24px 32px;text-align:center;animation:infoIn 0.25s ease}
+@keyframes infoIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
+.info-box .info-label{font-size:13px;color:#888;margin-bottom:6px}
+.info-box .info-name{font-size:18px;color:#fff;font-weight:600;letter-spacing:1px}
+
+/* ===== 呼吸光标（颜色跟随字色 c2） ===== */
+.cursor-dot{position:fixed;top:0;left:0;z-index:9999;width:10px;height:10px;border-radius:50%;background:#1a1a1a;box-shadow:0 0 8px rgba(26,26,26,0.85),0 0 18px rgba(26,26,26,0.4);transform:translate(-50%,-50%);pointer-events:none;animation:cursorBreathe 1.8s ease-in-out infinite}
+.cursor-dot.hide{opacity:0}
+@keyframes cursorBreathe{0%,100%{transform:translate(-50%,-50%) scale(0.7);opacity:0.55}50%{transform:translate(-50%,-50%) scale(1.25);opacity:1}}
+</style>
+</head>
+<body>
+
+<!-- ===== 控制面板 ===== -->
+<div class="control-panel" id="controlPanel">
+  <div class="panel-title">柳枝文字【老黑】</div>
+
+  <div>
+    <div class="param-label"><span>文字</span></div>
+    <input type="text" class="text-input" id="textInput" value="黑白之间寻绚烂">
+  </div>
+
+  <div>
+    <div class="param-label"><span>字体名</span></div>
+    <input type="text" class="text-input" id="fontInput" value="sans-serif" placeholder="如 楷体 / 仿宋">
+    <label class="font-file-btn" for="fontFile">＋ 加载本地字体 .ttf/.otf</label>
+    <input type="file" id="fontFile" accept=".ttf,.otf,.woff">
+    <div class="font-file-name" id="fontFileName"></div>
+  </div>
+
+  <div>
+    <div class="param-label"><span>字号</span><span class="param-value" id="fontSizeVal">10</span></div>
+    <input type="range" id="fontSize" min="8" max="36" value="10" step="1">
+  </div>
+
+  <div>
+    <div class="param-label"><span>线长</span><span class="param-value" id="chainLengthVal">700</span></div>
+    <input type="range" id="chainLength" min="200" max="1200" value="700" step="10">
+  </div>
+
+  <div>
+    <div class="param-label"><span>间距(不重复时)</span><span class="param-value" id="spacingVal">38</span></div>
+    <input type="range" id="spacing" min="12" max="64" value="38" step="1">
+  </div>
+
+  <div>
+    <div class="param-label"><span>间距随机</span><span class="param-value" id="spacingJitterVal">0.30</span></div>
+    <input type="range" id="spacingJitter" min="0" max="0.60" value="0.30" step="0.01">
+  </div>
+
+  <div>
+    <div class="param-label"><span>线条数量</span><span class="param-value" id="lineCountVal">80</span></div>
+    <input type="range" id="lineCount" min="20" max="140" value="80" step="5">
+  </div>
+
+  <div>
+    <div class="param-label"><span>长度变化</span><span class="param-value" id="variationVal">0.10</span></div>
+    <input type="range" id="variation" min="0" max="0.20" value="0.10" step="0.01">
+  </div>
+
+  <div>
+    <div class="param-label"><span>线条宽度</span><span class="param-value" id="lineWidthVal">2.0</span></div>
+    <input type="range" id="lineWidth" min="0.5" max="4" value="2" step="0.1">
+  </div>
+
+  <div>
+    <div class="param-label"><span>鼠标半径</span><span class="param-value" id="mouseRadiusVal">100</span></div>
+    <input type="range" id="mouseRadius" min="50" max="270" value="100" step="5">
+  </div>
+
+  <div>
+    <div class="param-label"><span>鼠标风力</span><span class="param-value" id="mouseForceVal">2.0</span></div>
+    <input type="range" id="mouseForce" min="0" max="6.0" value="2.0" step="0.1">
+  </div>
+
+  <div>
+    <div class="param-label"><span>重力</span><span class="param-value" id="gravityVal">0.35</span></div>
+    <input type="range" id="gravity" min="0" max="0.70" value="0.35" step="0.01">
+  </div>
+
+  <div>
+    <div class="param-label"><span>线条透明度</span><span class="param-value" id="lineAlphaVal">0.55</span></div>
+    <input type="range" id="lineAlpha" min="0.05" max="1.0" value="0.55" step="0.01">
+  </div>
+
+  <div>
+    <div class="param-label"><span>重复填充</span></div>
+    <div class="btn-row">
+      <button class="direction-btn active" data-repeat="true">是</button>
+      <button class="direction-btn" data-repeat="false">否</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="param-label"><span>字符发光</span></div>
+    <div class="btn-row">
+      <button class="direction-btn" data-glow="true">开</button>
+      <button class="direction-btn active" data-glow="false">关</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="param-label"><span>配色预设</span></div>
+    <div class="btn-row">
+      <button class="direction-btn active" data-preset="willow">柳枝</button>
+      <button class="direction-btn" data-preset="aurora">极光</button>
+      <button class="direction-btn" data-preset="ember">余烬</button>
+      <button class="direction-btn" data-preset="ocean">海洋</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="param-label"><span>自定义配色</span></div>
+    <div class="color-row">
+      <div class="color-pick"><label>线色</label><input type="color" id="colorC1" value="#33ff00"></div>
+      <div class="color-pick"><label>字色</label><input type="color" id="colorC2" value="#1a1a1a"></div>
+      <div class="color-pick"><label>背景</label><input type="color" id="colorBg" value="#ffffff"></div>
+    </div>
+  </div>
+
+  <button class="save-btn" id="saveBtn">保存 PNG</button>
+</div>
+
+<!-- ===== 面板开关 ===== -->
+<button class="toggle-btn" id="toggleBtn">☰</button>
+
+<!-- ===== 底部挂件（复制自 essay-paper） ===== -->
+<div class="bottom-links" id="bottomLinks">
+  <button class="link-icon" id="wechatBtn" title="公众号：黑白间设计"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg></button>
+  <a class="link-icon" href="https://space.bilibili.com/76949949" target="_blank" title="B站：黑白间设计"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="14" rx="3"/><path d="M9 2l3 4M15 2l-3 4"/><circle cx="9" cy="13" r="1.2"/><circle cx="15" cy="13" r="1.2"/></svg></a>
+  <a class="link-icon h-letter" href="https://pan.quark.cn/s/3fdb856606ad" target="_blank" title="HEIP插件下载">H</a>
+  <button class="link-icon arrow-btn" id="hideLinksBtn"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+</div>
+<button class="bottom-expand" id="showLinksBtn"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+
+<!-- ===== 公众号弹窗 ===== -->
+<div class="info-modal" id="infoModal"><div class="info-box"><div class="info-label">微信公众号</div><div class="info-name">黑白间设计</div></div></div>
+
+<!-- ===== 呼吸光标 ===== -->
+<div class="cursor-dot" id="cursorDot"></div>
+
+<!-- ===== p5.js ===== -->
+<script src="p5.min.js"></script>
+<script>
+// ========== 配置 ==========
+const cfg = {
+  text: '黑白之间寻绚烂',
+  fontSize: 10,
+  chainLength: 700,
+  spacing: 38,
+  spacingJitter: 0.30,
+  lineCount: 80,
+  variation: 0.10,
+  lineWidth: 2.0,
+  windStrength: 1,
+  windSpeed: 0.5,
+  mouseRadius: 100,
+  mouseForce: 2.0,
+  gravity: 0.35,
+  damping: 0.88,
+  iterations: 5,
+  lineAlpha: 0.55,
+  repeat: true,
+  glow: false,
+  preset: 'willow',
+  fontName: 'sans-serif',
+  c1: '#33ff00',
+  c2: '#1a1a1a',
+  bg: '#ffffff'
+};
+
+const presets = {
+  willow: { c1:'#33ff00', c2:'#1a1a1a', bg:'#ffffff' },
+  aurora: { c1:'#7afcff', c2:'#ff7af0', bg:'#080814' },
+  ember:  { c1:'#ff7a45', c2:'#f4eedc', bg:'#160a05' },
+  ocean:  { c1:'#34d4ff', c2:'#7c5cff', bg:'#050a18' }
+};
+
+// ========== 工具 ==========
+function hexToRgb(h){const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return{r,g,b}}
+
+// ========== Verlet 物理 ==========
+class VPoint {
+  constructor(x,y){
+    this.x=x; this.y=y;
+    this.ox=x; this.oy=y;
+    this.pinned=false;
+  }
+  update(gravity,damping){
+    if(this.pinned) return;
+    const vx=(this.x-this.ox)*damping;
+    const vy=(this.y-this.oy)*damping;
+    this.ox=this.x; this.oy=this.y;
+    this.x+=vx;
+    this.y+=vy+gravity;
+  }
+}
+
+class Chain {
+  constructor(startX,segments,segLen,char){
+    this.points=[];
+    this.segLen=segLen;
+    this.char=char;
+    for(let i=0;i<=segments;i++){
+      const p=new VPoint(startX, i*segLen);
+      if(i===0) p.pinned=true;
+      this.points.push(p);
+    }
+  }
+  satisfyConstraints(iters){
+    for(let it=0;it<iters;it++){
+      for(let i=0;i<this.points.length-1;i++){
+        const p1=this.points[i], p2=this.points[i+1];
+        const dx=p2.x-p1.x, dy=p2.y-p1.y;
+        const dist=Math.sqrt(dx*dx+dy*dy)||0.0001;
+        const diff=(dist-this.segLen)/dist;
+        if(p1.pinned&&p2.pinned) continue;
+        if(p1.pinned){ p2.x-=dx*diff; p2.y-=dy*diff; }
+        else if(p2.pinned){ p1.x+=dx*diff; p1.y+=dy*diff; }
+        else{ p1.x+=dx*diff*0.5; p1.y+=dy*diff*0.5; p2.x-=dx*diff*0.5; p2.y-=dy*diff*0.5; }
+      }
+    }
+  }
+}
+
+// ========== 鼠标风场系统（持续传播） ==========
+const WIND_CELL = 40;
+let windCols = 0, windRows = 0;
+let windVX = null, windVY = null;
+let windVX2 = null, windVY2 = null;
+
+function initWindField() {
+  windCols = Math.ceil(width / WIND_CELL) + 1;
+  windRows = Math.ceil(height / WIND_CELL) + 1;
+  const n = windCols * windRows;
+  windVX = new Float32Array(n);
+  windVY = new Float32Array(n);
+  windVX2 = new Float32Array(n);
+  windVY2 = new Float32Array(n);
+}
+
+function injectMouseWind(x, y, vx, vy) {
+  if (!windVX) return;
+  const r = Math.ceil(cfg.mouseRadius / WIND_CELL);
+  const cx = x / WIND_CELL;
+  const cy = y / WIND_CELL;
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const gx = Math.floor(cx + dx);
+      const gy = Math.floor(cy + dy);
+      if (gx < 0 || gx >= windCols || gy < 0 || gy >= windRows) continue;
+      const cellX = gx * WIND_CELL + WIND_CELL / 2;
+      const cellY = gy * WIND_CELL + WIND_CELL / 2;
+      const ddx = cellX - x, ddy = cellY - y;
+      const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+      if (dist > cfg.mouseRadius) continue;
+      const falloff = 1 - dist / cfg.mouseRadius;
+      const idx = gy * windCols + gx;
+      windVX[idx] += vx * falloff * cfg.mouseForce * 0.15;
+      windVY[idx] += vy * falloff * cfg.mouseForce * 0.15;
+    }
+  }
+}
+
+function updateWindField() {
+  if (!windVX) return;
+  const decay = 0.97;
+  const diffuse = 0.12;
+  for (let y = 0; y < windRows; y++) {
+    for (let x = 0; x < windCols; x++) {
+      const idx = y * windCols + x;
+      let vx = windVX[idx];
+      let vy = windVY[idx];
+      let sx = vx, sy = vy, cnt = 1;
+      if (x > 0) { sx += windVX[idx - 1]; sy += windVY[idx - 1]; cnt++; }
+      if (x < windCols - 1) { sx += windVX[idx + 1]; sy += windVY[idx + 1]; cnt++; }
+      if (y > 0) { sx += windVX[idx - windCols]; sy += windVY[idx - windCols]; cnt++; }
+      if (y < windRows - 1) { sx += windVX[idx + windCols]; sy += windVY[idx + windCols]; cnt++; }
+      vx = vx + (sx / cnt - vx) * diffuse;
+      vy = vy + (sy / cnt - vy) * diffuse;
+      vx *= decay;
+      vy *= decay;
+      const cap = 20;
+      windVX2[idx] = Math.max(-cap, Math.min(cap, vx));
+      windVY2[idx] = Math.max(-cap, Math.min(cap, vy));
+    }
+  }
+  const tx = windVX, ty = windVY;
+  windVX = windVX2; windVY = windVY2;
+  windVX2 = tx; windVY2 = ty;
+}
+
+function getWindFieldAt(x, y) {
+  if (!windVX) return { vx: 0, vy: 0 };
+  const gx = Math.floor(x / WIND_CELL);
+  const gy = Math.floor(y / WIND_CELL);
+  if (gx < 0 || gx >= windCols || gy < 0 || gy >= windRows) return { vx: 0, vy: 0 };
+  const idx = gy * windCols + gx;
+  return { vx: windVX[idx], vy: windVY[idx] };
+}
+
+// ========== 状态 ==========
+let chains=[];
+let mx=-9999, my=-9999;
+let mvx=0, mvy=0;
+let prevMX=-9999, prevMY=-9999;
+let frameTime=0;
+let needsRebuild=true;
+let bgC, lineC, charC;
+
+// ========== 生命周期 ==========
+function setup(){
+  createCanvas(windowWidth,windowHeight);
+  pixelDensity(1);
+  colorMode(RGB,255,255,255,1);
+  noiseSeed(Math.floor(Math.random()*10000));
+  updateColors();
+  initWindField();
+  buildChains();
+  bindUI();
+  bindCursor();
+  bindBottomLinks();
+  bindFont();
+}
+
+function draw(){
+  frameTime++;
+
+  // 背景
+  background(bgC.r,bgC.g,bgC.b);
+
+  // 重建检测
+  if(needsRebuild){ buildChains(); needsRebuild=false; }
+
+  // 鼠标有效位置（排除面板区域）
+  let emx=mx, emy=my;
+  const panel=document.getElementById('controlPanel');
+  if(!panel.classList.contains('collapsed')){
+    const rect=panel.getBoundingClientRect();
+    if(emx>=rect.left&&emx<=rect.right&&emy>=rect.top&&emy<=rect.bottom){ emx=-9999; emy=-9999; }
+  }
+
+  // 鼠标速度追踪
+  if(prevMX>-9000 && mx>-9000){
+    mvx=mvx*0.3+(mx-prevMX)*0.7;
+    mvy=mvy*0.3+(my-prevMY)*0.7;
+  }
+  prevMX=mx; prevMY=my;
+  mvx*=0.8; mvy*=0.8;
+
+  // 注入鼠标风到风场
+  if(emx>-9000 && (Math.abs(mvx)>0.5 || Math.abs(mvy)>0.5)){
+    injectMouseWind(emx, emy, mvx, mvy);
+  }
+
+  // 更新风场（扩散+衰减）
+  updateWindField();
+
+  // 物理更新
+  for(const chain of chains){
+    for(let i=0;i<chain.points.length;i++){
+      const p=chain.points[i];
+      if(p.pinned) continue;
+      p.update(cfg.gravity,cfg.damping);
+      // 阵风（底部更强）
+      const factor=i/chain.points.length;
+      const windX=getWindX(p.x,frameTime)*factor;
+      p.x+=windX;
+      // 鼠标风场（持续传播）
+      const mwind=getWindFieldAt(p.x,p.y);
+      p.x+=mwind.vx*factor;
+      p.y+=mwind.vy*factor;
+    }
+    chain.satisfyConstraints(cfg.iterations);
+  }
+
+  // 绘制顶部锚线
+  stroke(lineC.r,lineC.g,lineC.b,cfg.lineAlpha*0.4);
+  strokeWeight(cfg.lineWidth);
+  line(0,1,width,1);
+
+  // 绘制线条
+  noFill();
+  for(const chain of chains){
+    const pts=chain.points;
+    for(let i=0;i<pts.length-1;i++){
+      const t=i/(pts.length-1);
+      const alpha=cfg.lineAlpha*(0.25+t*0.75);
+      stroke(lineC.r,lineC.g,lineC.b,alpha);
+      strokeWeight(cfg.lineWidth);
+      line(pts[i].x,pts[i].y,pts[i+1].x,pts[i+1].y);
+    }
+  }
+
+  // 绘制字符
+  textAlign(CENTER,CENTER);
+  textSize(cfg.fontSize);
+  if(cfg.fontName) textFont(cfg.fontName);
+
+  for(const chain of chains){
+    const last=chain.points[chain.points.length-1];
+    const prev=chain.points[chain.points.length-2];
+    const angle=Math.atan2(last.x-prev.x,last.y-prev.y);
+
+    push();
+    translate(last.x,last.y);
+    rotate(angle);
+
+    // 发光
+    if(cfg.glow){
+      blendMode(ADD);
+      noStroke();
+      fill(charC.r,charC.g,charC.b,0.10);
+      circle(0,0,cfg.fontSize*2.5);
+      fill(charC.r,charC.g,charC.b,0.08);
+      circle(0,0,cfg.fontSize*3.5);
+      blendMode(BLEND);
+    }
+
+    noStroke();
+    fill(charC.r,charC.g,charC.b,1);
+    text(chain.char,0,0);
+    pop();
+  }
+}
+
+function windowResized(){
+  resizeCanvas(windowWidth,windowHeight);
+  initWindField();
+  needsRebuild=true;
+}
+
+// ========== 构建链条 ==========
+function buildChains(){
+  chains=[];
+  const chars=(cfg.text||' ').split('');
+  if(chars.length===0) chars.push(' ');
+
+  // 段数自动计算：线长 / 20
+  const segs=Math.max(5,Math.round(cfg.chainLength/20));
+
+  if(cfg.repeat){
+    const count=cfg.lineCount;
+    const baseSpacing=width/count;
+    for(let i=0;i<count;i++){
+      const ch=chars[i%chars.length];
+      const jitter=(Math.random()-0.5)*2*cfg.spacingJitter*baseSpacing;
+      const x=i*baseSpacing+baseSpacing/2+jitter;
+      const len=cfg.chainLength*(1+(Math.random()-0.5)*2*cfg.variation);
+      chains.push(new Chain(x,segs,len/segs,ch));
+    }
+  } else {
+    const totalWidth=chars.length*cfg.spacing;
+    const startX=(width-totalWidth)/2+cfg.spacing/2;
+    for(let i=0;i<chars.length;i++){
+      const jitter=(Math.random()-0.5)*2*cfg.spacingJitter*cfg.spacing;
+      const x=startX+i*cfg.spacing+jitter;
+      const len=cfg.chainLength*(1+(Math.random()-0.5)*2*cfg.variation);
+      chains.push(new Chain(x,segs,len/segs,chars[i]));
+    }
+  }
+
+  // 初始晃荡：所有线条同步左右晃，Verlet 物理自然衰减
+  const swingDir=Math.random()>0.5?1:-1;
+  for(const chain of chains){
+    for(let i=1;i<chain.points.length;i++){
+      const p=chain.points[i];
+      const factor=i/chain.points.length;
+      p.x+=swingDir*5*factor;
+    }
+  }
+}
+
+// ========== 阵风系统 ==========
+function getWindX(x,t){
+  const globalDir=(noise(t*cfg.windSpeed*0.0005)-0.5)*2;
+  const localDir=(noise(x*0.003,t*cfg.windSpeed*0.001)-0.5)*0.8;
+  const gustRaw=noise(t*cfg.windSpeed*0.002,x*0.001);
+  const gust=Math.pow(gustRaw,2.5);
+  const base=(globalDir+localDir)*cfg.windStrength*0.12;
+  const gustForce=(globalDir+localDir)*cfg.windStrength*gust*1.5;
+  return base+gustForce;
+}
+
+// ========== 颜色更新 ==========
+function updateColors(){
+  bgC=hexToRgb(cfg.bg);
+  lineC=hexToRgb(cfg.c1);
+  charC=hexToRgb(cfg.c2);
+  updateCursorColor();
+}
+
+function updateCursorColor(){
+  const dot=document.getElementById('cursorDot');
+  const c=hexToRgb(cfg.c2);
+  dot.style.background=cfg.c2;
+  dot.style.boxShadow=`0 0 8px rgba(${c.r},${c.g},${c.b},0.85),0 0 18px rgba(${c.r},${c.g},${c.b},0.4)`;
+}
+
+// ========== UI 绑定 ==========
+function bindUI(){
+  const bindSlider=(id,valId,prop,fmt,rebuild)=>{
+    const el=document.getElementById(id);
+    const valEl=document.getElementById(valId);
+    el.addEventListener('input',()=>{
+      const v=parseFloat(el.value);
+      cfg[prop]=v;
+      valEl.textContent=fmt?fmt(v):v;
+      if(rebuild) needsRebuild=true;
+    });
+  };
+
+  bindSlider('fontSize','fontSizeVal','fontSize',v=>v,false);
+  bindSlider('chainLength','chainLengthVal','chainLength',v=>v,true);
+  bindSlider('spacing','spacingVal','spacing',v=>v,true);
+  bindSlider('spacingJitter','spacingJitterVal','spacingJitter',v=>v.toFixed(2),true);
+  bindSlider('lineCount','lineCountVal','lineCount',v=>v,true);
+  bindSlider('variation','variationVal','variation',v=>v.toFixed(2),true);
+  bindSlider('lineWidth','lineWidthVal','lineWidth',v=>v.toFixed(1),false);
+  bindSlider('mouseRadius','mouseRadiusVal','mouseRadius',v=>v,false);
+  bindSlider('mouseForce','mouseForceVal','mouseForce',v=>v.toFixed(1),false);
+  bindSlider('gravity','gravityVal','gravity',v=>v.toFixed(2),false);
+  bindSlider('lineAlpha','lineAlphaVal','lineAlpha',v=>v.toFixed(2),false);
+
+  // 文字
+  document.getElementById('textInput').addEventListener('input',e=>{
+    cfg.text=e.target.value||' ';
+    needsRebuild=true;
+  });
+
+  // 面板开关
+  document.getElementById('toggleBtn').addEventListener('click',()=>{
+    document.getElementById('controlPanel').classList.toggle('collapsed');
+  });
+
+  // 重复填充
+  document.querySelectorAll('[data-repeat]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('[data-repeat]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      cfg.repeat=btn.dataset.repeat==='true';
+      needsRebuild=true;
+    });
+  });
+
+  // 字符发光
+  document.querySelectorAll('[data-glow]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('[data-glow]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      cfg.glow=btn.dataset.glow==='true';
+    });
+  });
+
+  // 配色预设
+  document.querySelectorAll('[data-preset]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('[data-preset]').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const p=presets[btn.dataset.preset];
+      cfg.preset=btn.dataset.preset;
+      cfg.c1=p.c1; cfg.c2=p.c2; cfg.bg=p.bg;
+      document.getElementById('colorC1').value=p.c1;
+      document.getElementById('colorC2').value=p.c2;
+      document.getElementById('colorBg').value=p.bg;
+      updateColors();
+    });
+  });
+
+  // 取色器
+  document.getElementById('colorC1').addEventListener('input',e=>{
+    cfg.c1=e.target.value;
+    document.querySelectorAll('[data-preset]').forEach(b=>b.classList.remove('active'));
+    updateColors();
+  });
+  document.getElementById('colorC2').addEventListener('input',e=>{
+    cfg.c2=e.target.value;
+    document.querySelectorAll('[data-preset]').forEach(b=>b.classList.remove('active'));
+    updateColors();
+  });
+  document.getElementById('colorBg').addEventListener('input',e=>{
+    cfg.bg=e.target.value;
+    document.querySelectorAll('[data-preset]').forEach(b=>b.classList.remove('active'));
+    updateColors();
+  });
+
+  // 保存 PNG
+  document.getElementById('saveBtn').addEventListener('click',()=>{
+    saveCanvas('柳枝文字','png');
+  });
+}
+
+// ========== 呼吸光标 ==========
+function bindCursor(){
+  const dot=document.getElementById('cursorDot');
+  window.addEventListener('pointermove',e=>{
+    mx=e.clientX; my=e.clientY;
+    dot.style.left=mx+'px';
+    dot.style.top=my+'px';
+  });
+  const uiEls=[document.getElementById('controlPanel'),document.getElementById('bottomLinks')];
+  uiEls.forEach(el=>{
+    el.addEventListener('pointerenter',()=>dot.classList.add('hide'));
+    el.addEventListener('pointerleave',()=>dot.classList.remove('hide'));
+  });
+}
+
+// ========== 底部挂件（复制自 essay-paper） ==========
+function bindBottomLinks(){
+  const bottomLinks=document.getElementById('bottomLinks');
+  document.getElementById('hideLinksBtn').addEventListener('click',()=>{
+    bottomLinks.classList.add('hidden');
+    document.getElementById('showLinksBtn').classList.add('visible');
+  });
+  document.getElementById('showLinksBtn').addEventListener('click',()=>{
+    bottomLinks.classList.remove('hidden');
+    document.getElementById('showLinksBtn').classList.remove('visible');
+  });
+  const infoModal=document.getElementById('infoModal');
+  document.getElementById('wechatBtn').addEventListener('click',()=>infoModal.classList.add('show'));
+  infoModal.addEventListener('click',e=>{if(e.target===infoModal)infoModal.classList.remove('show')});
+}
+
+// ========== 字体上传（复制自 essay-paper） ==========
+function bindFont(){
+  document.getElementById('fontInput').addEventListener('input',e=>{
+    cfg.fontName=e.target.value||'sans-serif';
+  });
+  document.getElementById('fontFile').addEventListener('change',e=>{
+    const file=e.target.files[0];
+    if(!file) return;
+    document.getElementById('fontFileName').textContent=file.name;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const family='custom_'+Date.now();
+      const fontFace=new FontFace(family,`url(${reader.result})`);
+      fontFace.load().then(loaded=>{
+        document.fonts.add(loaded);
+        cfg.fontName=family;
+        document.getElementById('fontInput').value=file.name;
+      }).catch(err=>{
+        document.getElementById('fontFileName').textContent='加载失败：'+err;
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value='';
+  });
+}
+</script>
+</body>
+</html>
