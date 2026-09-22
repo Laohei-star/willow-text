@@ -169,7 +169,10 @@ input[type="file"]{display:none}
     </div>
   </div>
 
-  <button class="save-btn" id="saveBtn">保存 PNG</button>
+  <div class="btn-row">
+    <button class="save-btn" id="saveBtn" style="flex:1">保存 PNG</button>
+    <button class="save-btn" id="resetBtn" style="flex:1;background:linear-gradient(135deg,#4b5563,#6b7280)">重置参数</button>
+  </div>
 </div>
 
 
@@ -197,7 +200,7 @@ input[type="file"]{display:none}
 </script>
 <script>
 
-const cfg = {
+const DEFAULT_CFG = {
   text: '黑白之间寻绚烂',
   fontSize: 10,
   chainLength: 700,
@@ -222,6 +225,104 @@ const cfg = {
   c2: '#1a1a1a',
   bg: '#ffffff'
 };
+const cfg = Object.assign({}, DEFAULT_CFG);
+
+// ---- localStorage persistence ----
+const LS_PREFIX = 'willow_';
+const PERSIST_KEYS = ['text','fontSize','chainLength','spacing','spacingJitter','lineCount','variation','lineWidth','windStrength','windSpeed','mouseRadius','mouseForce','gravity','damping','iterations','lineAlpha','repeat','glow','preset','c1','c2','bg'];
+
+function persistCfg(key, value){
+  try{ localStorage.setItem(LS_PREFIX+key, JSON.stringify(value)); }catch(e){}
+}
+
+function restoreCfg(){
+  for(const k of PERSIST_KEYS){
+    const raw = localStorage.getItem(LS_PREFIX+k);
+    if(raw !== null){
+      try{ cfg[k] = JSON.parse(raw); }catch(e){}
+    }
+  }
+}
+
+const FMT = {
+  fontSize:v=>v, chainLength:v=>v, spacing:v=>v, spacingJitter:v=>v.toFixed(2),
+  lineCount:v=>v, variation:v=>v.toFixed(2), lineWidth:v=>v.toFixed(1),
+  mouseRadius:v=>v, mouseForce:v=>v.toFixed(1), gravity:v=>v.toFixed(2),
+  lineAlpha:v=>v.toFixed(2)
+};
+
+function syncUIFromCfg(){
+  const sliderKeys = ['fontSize','chainLength','spacing','spacingJitter','lineCount','variation','lineWidth','mouseRadius','mouseForce','gravity','lineAlpha'];
+  for(const k of sliderKeys){
+    const el = document.getElementById(k);
+    const valEl = document.getElementById(k+'Val');
+    if(el){ el.value = cfg[k]; }
+    if(valEl){ valEl.textContent = FMT[k](cfg[k]); }
+  }
+  const textInput = document.getElementById('textInput');
+  if(textInput){ textInput.value = cfg.text; }
+  const fontInput = document.getElementById('fontInput');
+  if(fontInput && cfg.fontName && !cfg.fontName.startsWith('custom_')){ fontInput.value = cfg.fontName; }
+  document.getElementById('colorC1').value = cfg.c1;
+  document.getElementById('colorC2').value = cfg.c2;
+  document.getElementById('colorBg').value = cfg.bg;
+  document.querySelectorAll('[data-repeat]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.repeat === String(cfg.repeat));
+  });
+  document.querySelectorAll('[data-glow]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.glow === String(cfg.glow));
+  });
+  document.querySelectorAll('[data-preset]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.preset === cfg.preset);
+  });
+}
+
+function persistFontData(dataURL, fileName){
+  try{
+    localStorage.setItem(LS_PREFIX+'fontData', dataURL);
+    localStorage.setItem(LS_PREFIX+'fontFileName', fileName);
+  }catch(e){ /* font too large for localStorage */ }
+}
+
+function persistFontName(name){
+  try{ localStorage.setItem(LS_PREFIX+'fontName', name); }catch(e){}
+}
+
+function clearFontData(){
+  try{
+    localStorage.removeItem(LS_PREFIX+'fontData');
+    localStorage.removeItem(LS_PREFIX+'fontFileName');
+    localStorage.removeItem(LS_PREFIX+'fontName');
+  }catch(e){}
+}
+
+function restoreFont(){
+  const dataURL = localStorage.getItem(LS_PREFIX+'fontData');
+  const fileName = localStorage.getItem(LS_PREFIX+'fontFileName');
+  if(dataURL){
+    const family = 'custom_'+Date.now();
+    const fontFace = new FontFace(family, `url(${dataURL})`);
+    fontFace.load().then(loaded=>{
+      document.fonts.add(loaded);
+      cfg.fontName = family;
+      const fi = document.getElementById('fontInput');
+      if(fi) fi.value = fileName || '';
+      const fn = document.getElementById('fontFileName');
+      if(fn) fn.textContent = fileName || '';
+    }).catch(()=>{ restoreFontName(); });
+  } else {
+    restoreFontName();
+  }
+}
+
+function restoreFontName(){
+  const raw = localStorage.getItem(LS_PREFIX+'fontName');
+  if(raw !== null){
+    cfg.fontName = raw;
+    const fi = document.getElementById('fontInput');
+    if(fi) fi.value = raw;
+  }
+}
 
 const presets = {
   willow: { c1:'#33ff00', c2:'#1a1a1a', bg:'#ffffff' },
@@ -368,13 +469,16 @@ function setup(){
   pixelDensity(1);
   colorMode(RGB,255,255,255,1);
   noiseSeed(Math.floor(Math.random()*10000));
+  restoreCfg();
   updateColors();
   initWindField();
   buildChains();
   bindUI();
+  syncUIFromCfg();
   bindCursor();
   bindBottomLinks();
   bindFont();
+  restoreFont();
 }
 
 function draw(){
@@ -552,108 +656,14 @@ function updateCursorColor(){
 }
 
 
-
-// ============ 数据持久化 ============
-var LS_PREFIX = 'willow_';
-var LS_IMAGE_MAX = 4 * 1024 * 1024;
-
-function persistCfg(key, value) {
-  try { localStorage.setItem(LS_PREFIX + key, String(value)); }
-  catch (e) { console.warn('[persist] localStorage 写入失败（' + key + '）:', e.message); }
-}
-
-function persistFont(dataUrl, fontName) {
-  if (!dataUrl) return;
-  if (dataUrl.length > LS_IMAGE_MAX) {
-    console.warn('[persist] 字体过大，未存 localStorage');
-    return;
-  }
-  try {
-    localStorage.setItem(LS_PREFIX + 'font', dataUrl);
-    localStorage.setItem(LS_PREFIX + 'fontName', fontName);
-  } catch (e) { console.warn('[persist] 字体存 localStorage 失败:', e.message); }
-}
-function clearPersistedFont() {
-  localStorage.removeItem(LS_PREFIX + 'font');
-  localStorage.removeItem(LS_PREFIX + 'fontName');
-}
-
-function restoreCfg() {
-  var keys = ['text', 'fontSize', 'chainLength', 'spacing', 'spacingJitter', 'lineCount', 'variation', 'lineWidth', 'windStrength', 'windSpeed', 'mouseRadius', 'mouseForce', 'gravity', 'damping', 'iterations', 'lineAlpha', 'repeat', 'glow', 'preset', 'fontName', 'c1', 'c2', 'bg'];
-  var count = 0;
-  for (var i = 0; i < keys.length; i++) {
-    var k = keys[i];
-    var v = localStorage.getItem(LS_PREFIX + k);
-    if (v === null) continue;
-    if (typeof cfg[k] === 'boolean') cfg[k] = (v === 'true');
-    else if (typeof cfg[k] === 'number') cfg[k] = parseFloat(v);
-    else if (typeof cfg[k] === 'string') cfg[k] = v;
-    count++;
-  }
-  if (count === 0) return false;
-  syncUIFromCfg();
-  console.log('[persist] 还原', count, '个参数');
-  return true;
-}
-
-function syncUIFromCfg() {
-  var $ = function(id) { return document.getElementById(id); };
-  // Sync all range inputs that match cfg keys
-  for (var k in cfg) {
-    var el = $(k);
-    if (el && el.type === 'range') {
-      el.value = cfg[k];
-      // trigger label update
-      if (el.oninput) el.oninput({target: el});
-      else el.dispatchEvent(new Event('input', {bubbles: true}));
-    }
-  }
-  // Sync color inputs
-  for (var k2 in cfg) {
-    var el2 = $(k2);
-    if (el2 && el2.type === 'color') {
-      el2.value = cfg[k2];
-      el2.dispatchEvent(new Event('input', {bubbles: true}));
-    }
-  }
-  // Sync text inputs
-  var ti = $('textInput');
-  if (ti && cfg.text !== undefined) { ti.value = cfg.text; ti.dispatchEvent(new Event('input', {bubbles: true})); }
-  var fn = $('fontName') || $('fontInput');
-  if (fn && cfg.fontName !== undefined) { 
-    if (fn.tagName === 'INPUT') { fn.value = cfg.fontName; }
-  }
-
-}
-
-function restoreFont() {
-  var src = localStorage.getItem(LS_PREFIX + 'font');
-  if (!src) return false;
-  var fname = localStorage.getItem(LS_PREFIX + 'fontName') || 'custom';
-  var face = new FontFace(fname, 'url(' + src + ')');
-  face.load().then(function(f) {
-    document.fonts.add(f);
-    if (typeof cfg !== 'undefined' && cfg.fontName !== undefined) cfg.fontName = fname;
-    var fn = document.getElementById('fontName') || document.getElementById('fontFileName');
-    if (fn) { if (fn.tagName === 'INPUT') fn.value = fname; }
-    console.log('[persist] 还原字体:', fname);
-  }).catch(function(e) {
-    console.warn('[persist] 还原字体失败:', e.message);
-  });
-  return true;
-}
-
 function bindUI(){
-  // 恢复持久化设置
-  try { restoreCfg(); } catch(e) { console.warn('restoreCfg err:', e.message); }
-  try { restoreFont(); } catch(e) {}
-
   const bindSlider=(id,valId,prop,fmt,rebuild)=>{
     const el=document.getElementById(id);
     const valEl=document.getElementById(valId);
     el.addEventListener('input',()=>{
       const v=parseFloat(el.value);
       cfg[prop]=v;
+      persistCfg(prop, v);
       valEl.textContent=fmt?fmt(v):v;
       if(rebuild) needsRebuild=true;
     });
@@ -672,8 +682,9 @@ function bindUI(){
   bindSlider('lineAlpha','lineAlphaVal','lineAlpha',v=>v.toFixed(2),false);
 
   
-  document.getElementById('textInput').addEventListener('input',e=>{ try { persistCfg('text', cfg.text); } catch(e) {}
+  document.getElementById('textInput').addEventListener('input',e=>{
     cfg.text=e.target.value||' ';
+    persistCfg('text', cfg.text);
     needsRebuild=true;
   });
 
@@ -688,6 +699,7 @@ function bindUI(){
       document.querySelectorAll('[data-repeat]').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       cfg.repeat=btn.dataset.repeat==='true';
+      persistCfg('repeat', cfg.repeat);
       needsRebuild=true;
     });
   });
@@ -698,6 +710,7 @@ function bindUI(){
       document.querySelectorAll('[data-glow]').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       cfg.glow=btn.dataset.glow==='true';
+      persistCfg('glow', cfg.glow);
     });
   });
 
@@ -709,6 +722,10 @@ function bindUI(){
       const p=presets[btn.dataset.preset];
       cfg.preset=btn.dataset.preset;
       cfg.c1=p.c1; cfg.c2=p.c2; cfg.bg=p.bg;
+      persistCfg('preset', cfg.preset);
+      persistCfg('c1', cfg.c1);
+      persistCfg('c2', cfg.c2);
+      persistCfg('bg', cfg.bg);
       document.getElementById('colorC1').value=p.c1;
       document.getElementById('colorC2').value=p.c2;
       document.getElementById('colorBg').value=p.bg;
@@ -719,16 +736,19 @@ function bindUI(){
   
   document.getElementById('colorC1').addEventListener('input',e=>{
     cfg.c1=e.target.value;
+    persistCfg('c1', cfg.c1);
     document.querySelectorAll('[data-preset]').forEach(b=>b.classList.remove('active'));
     updateColors();
   });
   document.getElementById('colorC2').addEventListener('input',e=>{
     cfg.c2=e.target.value;
+    persistCfg('c2', cfg.c2);
     document.querySelectorAll('[data-preset]').forEach(b=>b.classList.remove('active'));
     updateColors();
   });
   document.getElementById('colorBg').addEventListener('input',e=>{
     cfg.bg=e.target.value;
+    persistCfg('bg', cfg.bg);
     document.querySelectorAll('[data-preset]').forEach(b=>b.classList.remove('active'));
     updateColors();
   });
@@ -736,6 +756,21 @@ function bindUI(){
   
   document.getElementById('saveBtn').addEventListener('click',()=>{
     saveCanvas('柳枝文字','png');
+  });
+
+  document.getElementById('resetBtn').addEventListener('click',()=>{
+    for(const k of PERSIST_KEYS){
+      try{ localStorage.removeItem(LS_PREFIX+k); }catch(e){}
+    }
+    clearFontData();
+    Object.assign(cfg, DEFAULT_CFG);
+    const fi = document.getElementById('fontInput');
+    if(fi) fi.value = DEFAULT_CFG.fontName;
+    const fn = document.getElementById('fontFileName');
+    if(fn) fn.textContent = '';
+    syncUIFromCfg();
+    updateColors();
+    needsRebuild = true;
   });
 }
 
@@ -774,6 +809,8 @@ function bindBottomLinks(){
 function bindFont(){
   document.getElementById('fontInput').addEventListener('input',e=>{
     cfg.fontName=e.target.value||'sans-serif';
+    persistFontName(cfg.fontName);
+    clearFontData();
   });
   document.getElementById('fontFile').addEventListener('change',e=>{
     const file=e.target.files[0];
@@ -787,6 +824,7 @@ function bindFont(){
         document.fonts.add(loaded);
         cfg.fontName=family;
         document.getElementById('fontInput').value=file.name;
+        persistFontData(reader.result, file.name);
       }).catch(err=>{
         document.getElementById('fontFileName').textContent='加载失败：'+err;
       });
