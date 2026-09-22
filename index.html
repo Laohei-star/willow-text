@@ -552,7 +552,102 @@ function updateCursorColor(){
 }
 
 
+
+// ============ 数据持久化 ============
+var LS_PREFIX = 'willow_';
+var LS_IMAGE_MAX = 4 * 1024 * 1024;
+
+function persistCfg(key, value) {
+  try { localStorage.setItem(LS_PREFIX + key, String(value)); }
+  catch (e) { console.warn('[persist] localStorage 写入失败（' + key + '）:', e.message); }
+}
+
+function persistFont(dataUrl, fontName) {
+  if (!dataUrl) return;
+  if (dataUrl.length > LS_IMAGE_MAX) {
+    console.warn('[persist] 字体过大，未存 localStorage');
+    return;
+  }
+  try {
+    localStorage.setItem(LS_PREFIX + 'font', dataUrl);
+    localStorage.setItem(LS_PREFIX + 'fontName', fontName);
+  } catch (e) { console.warn('[persist] 字体存 localStorage 失败:', e.message); }
+}
+function clearPersistedFont() {
+  localStorage.removeItem(LS_PREFIX + 'font');
+  localStorage.removeItem(LS_PREFIX + 'fontName');
+}
+
+function restoreCfg() {
+  var keys = ['text', 'fontSize', 'chainLength', 'spacing', 'spacingJitter', 'lineCount', 'variation', 'lineWidth', 'windStrength', 'windSpeed', 'mouseRadius', 'mouseForce', 'gravity', 'damping', 'iterations', 'lineAlpha', 'repeat', 'glow', 'preset', 'fontName', 'c1', 'c2', 'bg'];
+  var count = 0;
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    var v = localStorage.getItem(LS_PREFIX + k);
+    if (v === null) continue;
+    if (typeof cfg[k] === 'boolean') cfg[k] = (v === 'true');
+    else if (typeof cfg[k] === 'number') cfg[k] = parseFloat(v);
+    else if (typeof cfg[k] === 'string') cfg[k] = v;
+    count++;
+  }
+  if (count === 0) return false;
+  syncUIFromCfg();
+  console.log('[persist] 还原', count, '个参数');
+  return true;
+}
+
+function syncUIFromCfg() {
+  var $ = function(id) { return document.getElementById(id); };
+  // Sync all range inputs that match cfg keys
+  for (var k in cfg) {
+    var el = $(k);
+    if (el && el.type === 'range') {
+      el.value = cfg[k];
+      // trigger label update
+      if (el.oninput) el.oninput({target: el});
+      else el.dispatchEvent(new Event('input', {bubbles: true}));
+    }
+  }
+  // Sync color inputs
+  for (var k2 in cfg) {
+    var el2 = $(k2);
+    if (el2 && el2.type === 'color') {
+      el2.value = cfg[k2];
+      el2.dispatchEvent(new Event('input', {bubbles: true}));
+    }
+  }
+  // Sync text inputs
+  var ti = $('textInput');
+  if (ti && cfg.text !== undefined) { ti.value = cfg.text; ti.dispatchEvent(new Event('input', {bubbles: true})); }
+  var fn = $('fontName') || $('fontInput');
+  if (fn && cfg.fontName !== undefined) { 
+    if (fn.tagName === 'INPUT') { fn.value = cfg.fontName; }
+  }
+
+}
+
+function restoreFont() {
+  var src = localStorage.getItem(LS_PREFIX + 'font');
+  if (!src) return false;
+  var fname = localStorage.getItem(LS_PREFIX + 'fontName') || 'custom';
+  var face = new FontFace(fname, 'url(' + src + ')');
+  face.load().then(function(f) {
+    document.fonts.add(f);
+    if (typeof cfg !== 'undefined' && cfg.fontName !== undefined) cfg.fontName = fname;
+    var fn = document.getElementById('fontName') || document.getElementById('fontFileName');
+    if (fn) { if (fn.tagName === 'INPUT') fn.value = fname; }
+    console.log('[persist] 还原字体:', fname);
+  }).catch(function(e) {
+    console.warn('[persist] 还原字体失败:', e.message);
+  });
+  return true;
+}
+
 function bindUI(){
+  // 恢复持久化设置
+  try { restoreCfg(); } catch(e) { console.warn('restoreCfg err:', e.message); }
+  try { restoreFont(); } catch(e) {}
+
   const bindSlider=(id,valId,prop,fmt,rebuild)=>{
     const el=document.getElementById(id);
     const valEl=document.getElementById(valId);
@@ -577,7 +672,7 @@ function bindUI(){
   bindSlider('lineAlpha','lineAlphaVal','lineAlpha',v=>v.toFixed(2),false);
 
   
-  document.getElementById('textInput').addEventListener('input',e=>{
+  document.getElementById('textInput').addEventListener('input',e=>{ try { persistCfg('text', cfg.text); } catch(e) {}
     cfg.text=e.target.value||' ';
     needsRebuild=true;
   });
